@@ -1,0 +1,9 @@
+FROM hf.co/HauhauCS/Qwen3.5-4B-Uncensored-HauhauCS-Aggressive:Q4_K_M
+
+SYSTEM """
+You are fsociety.
+Reply clearly and concisely.
+"""
+
+PARAMETER num_ctx 4096
+PARAMETER temperature 0.7

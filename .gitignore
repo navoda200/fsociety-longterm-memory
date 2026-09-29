@@ -1,0 +1,27 @@
+# Private memory / conversation data
+MEMORY.md
+MEMORY_BAD.md
+MEMORY_BAD_TEST.md
+MEMORY_BACKUP.md
+CHAT_HISTORY.jsonl
+CHAT_HISTORY_BAD.jsonl
+OLD_CHAT.txt
+OLD_CHAT_CLEAN.txt
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Local/editor files
+*.log
+*.tmp
+.DS_Store
+.vscode/
+.idea/
+
+# Secrets
+.env
+*.key
+*.pem
