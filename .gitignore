@@ -25,3 +25,12 @@ venv/
 .env
 *.key
 *.pem
+
+# Local backups
+*.backup
+MEMORY_CONTAMINATED_BACKUP.md
+CHAT_HISTORY_CONTAMINATED_BACKUP.jsonl
+
+# Successful local memory test backups
+CHAT_HISTORY_TEST_SUCCESS.jsonl
+MEMORY_TEST_SUCCESS.md
