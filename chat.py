@@ -11,6 +11,7 @@ HISTORY_FILE = "CHAT_HISTORY.jsonl"
 
 # Keep newest 8 user/assistant turns exact in active context.
 RECENT_TURNS = 8
+MAX_RECENT_CHARS = 40000
 
 # Consolidate when at least 8 older turns are waiting.
 CONSOLIDATE_TURNS = 8
@@ -18,7 +19,9 @@ CONSOLIDATE_TURNS = 8
 NORMAL_NUM_PREDICT = 8192
 MEMORY_NUM_PREDICT = 4096
 NUM_CTX = 24576
+MEMORY_NUM_CTX = 32768
 
+MAX_MEMORY_CHARS = 12000
 
 # ---------------------------------------------------------
 # MEMORY
@@ -93,9 +96,37 @@ def load_all_history():
 def load_recent_history():
     rows = load_all_history()
 
+    # Maximum 8 turns = 16 user/assistant messages
     max_messages = RECENT_TURNS * 2
+    recent = rows[-max_messages:]
 
-    return rows[-max_messages:]
+    total_chars = sum(
+        len(item.get("content", ""))
+        for item in recent
+    )
+
+    # Keep all recent turns if they fit under 40,000 chars.
+    if total_chars <= MAX_RECENT_CHARS:
+        return recent
+
+    # Otherwise keep newest messages and trim the oldest ones.
+    bounded = []
+    running_chars = 0
+
+    for item in reversed(recent):
+        content = item.get("content", "")
+        item_chars = len(content)
+
+        if bounded and running_chars + item_chars > MAX_RECENT_CHARS:
+            break
+
+        bounded.append(item)
+        running_chars += item_chars
+
+    # Restore chronological order.
+    bounded.reverse()
+
+    return bounded
 
 
 def save_message(role, content):
@@ -163,7 +194,8 @@ LONG-TERM MEMORY:
 def call_ollama(
     messages,
     stream=True,
-    num_predict=NORMAL_NUM_PREDICT
+    num_predict=NORMAL_NUM_PREDICT,
+    num_ctx=NUM_CTX
 ):
     payload = {
         "model": MODEL,
@@ -174,7 +206,7 @@ def call_ollama(
         "think": False,
 
         "options": {
-            "num_ctx": NUM_CTX,
+            "num_ctx": num_ctx,
             "num_predict": num_predict
         }
     }
@@ -304,10 +336,23 @@ def consolidate_memory(force=False):
         return False
 
     conversation_text = history_to_text(new_messages)
+    memory_too_large = len(memory) > MAX_MEMORY_CHARS
 
     memory_prompt = f"""
 You maintain persistent long-term memory for one ongoing conversation.
 
+MEMORY SIZE CONTROL:
+Current memory size: {len(memory)} characters.
+Maximum target size: {MAX_MEMORY_CHARS} characters.
+Aggressive compression required: {memory_too_large}
+
+If aggressive compression is required:
+- merge duplicate facts
+- remove obsolete suggestions and ideas
+- remove resolved open questions
+- remove outdated status information
+- shorten verbose explanations
+- preserve important decisions, requirements, preferences, current status, blockers, unresolved work, and still-relevant suggestions
 CURRENT LONG-TERM MEMORY:
 --- BEGIN CURRENT MEMORY ---
 {memory if memory else "No previous long-term memory."}
@@ -447,9 +492,10 @@ Output only the updated long-term memory document.
 
     try:
         updated_memory = call_ollama(
-            messages,
-            stream=False,
-            num_predict=MEMORY_NUM_PREDICT
+           messages,
+           stream=False,
+           num_predict=MEMORY_NUM_PREDICT,
+           num_ctx=MEMORY_NUM_CTX
         ).strip()
 
     except Exception as e:
